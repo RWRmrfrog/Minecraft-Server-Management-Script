@@ -1,58 +1,31 @@
 import requests
 import re
 import os
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 # Function to get the latest Minecraft Bedrock Dedicated Server download link for Windows
 def get_latest_minecraft_bds_zip():
-    url = "https://www.minecraft.net/en-us/download/server/bedrock"
-
-    session = requests.Session()
-    retry = Retry(
-        total=5,
-        backoff_factor=1,
-        status_forcelist=[500, 502, 503, 504],
-        raise_on_status=False
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    API_URL = "https://net-secondary.web.minecraft-services.net/api/v1.0/download/links"
+    DOWNLOAD_TYPE = "serverBedrockWindows"
 
     try:
-        response = session.get(url, headers=headers, timeout=10)
+        headers = {
+            'User-Agent': 'Mozilla/5.0'
+        }
+        response = requests.get(API_URL, headers=headers, timeout=30)
         response.raise_for_status()
-
-    except requests.exceptions.Timeout:
-        print("The request timed out.")
-        return None
-    except requests.exceptions.ConnectionError as e:
-        print(f"Connection error occurred: {e}")
-        return None
-    except requests.exceptions.HTTPError as err:
-        print(f"HTTP error occurred: {err}")
-        return None
-    except Exception as e:
-        print(f"An error occurred: {e}")
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching download URL: {e}")
         return None
 
-    match = re.search(r'href="(.*?bin-win.*?\.zip)"', response.text)
-    
-    if not match:
-        raise Exception("Failed to find the Windows server ZIP download link.")
-    
-    download_link = match.group(1)
-    
-    if not download_link.startswith('http'):
-        download_link = 'https://www.minecraft.net' + download_link
+    links = data.get("result", {}).get("links", [])
+    for link in links:
+        if link.get("downloadType") == DOWNLOAD_TYPE:
+            download_url = link.get("downloadUrl")
+            print(f"Successfully found download URL: {download_url}")
+            return download_url
 
-    print(f"Latest Download URL: {download_link}")
-    
-    return download_link
+    print(f"No download link found for '{DOWNLOAD_TYPE}'. Available types: {[l.get('downloadType') for l in links]}")
 
 # Function to extract version number from file name
 def extract_version_from_filename(filename):
